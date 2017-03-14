@@ -1,13 +1,14 @@
-#-*- coding: utf-8 -*-
-import sys
+# -*- coding: utf-8 -*-
+
 import stdnum.eu.vat as vat
 
-#Tryton imports
-from trytond.transaction import Transaction
 from trytond.pool import Pool
 
-def create_model(model,  **kwargs):
-    model = Pool().get(model)
+
+def create_model(model_name,  **kwargs):
+
+    Model = Pool().get(model_name)
+    model = Model()
     values = kwargs.copy()
 
     for field, value in values.iteritems():
@@ -28,38 +29,64 @@ def create_model(model,  **kwargs):
 
 
 def create_party(party_dict):
-    return create_model(model='party.party', **party_dict)
+    return create_model('party.party', **party_dict)
 
 
-def create_address(model, party_dict):
-    zips = get_zip(party_dict['zip'])[0]
-    if zips and zips != None:
-        party_dict.update({'country': zips.country.id,
-            'subdivision': zips.subdivision.id})
+def party_exists_by_code(code):
+    Party = Pool().get('party.party')
+    parties = Party.find(('code', '=', code), limit=1)
+    if parties:
+        return parties[0]
 
-    return create_model(model='party.address', **party_dict)
+
+def party_exists_by_identifier(code, type='eu_vat'):
+    PartyId = Pool().get('party.party.identifier')
+    parties = PartyId.find(('code', '=', code), ('type', '=', type), limit=1)
+    if parties:
+        return parties[0].party
+
+
+def create_address(values):
+    zips = get_zip(values.get('zip'))
+    # TODO
+    values['country'] = None
+    values['subdivision'] = None
+    if zips:
+        values.update({'country': zips.country,
+            'subdivision': zips.subdivision})
+
+    return create_model('party.address', **values)
 
 
 def get_zip(zip_code):
     CountryZip = Pool().get('country.zip')
-    zip_n = CountryZip()
-    zips = zip_n.search([('zip', '=', zip_code)], limit=1)
-    if zips != []:
-        return zips
-    else:
-        return None
+    zips = CountryZip.search([('zip', '=', zip_code)], limit=1)
+    if zips:
+        return zips[0]
 
 
-def create_identifiers(model, values, country='ES'):
-    values['vat_code'] = values['vat_code'].upper().strip()
-    values['vat_code'] = country + values['vat_code'].replace('-', '')
 
+def create_vat(code, country='ES'):
+    vat_code = code.upper().strip().replace('-', '')
+    if country:
+        vat_code = country + vat_code
+
+    values = {}
+    values['code'] = vat_code
     values['type'] = 'migration'
-    if vat.is_valid(values['vat_code']):
+    if vat.is_valid(vat_code):
         values['type'] = 'eu_vat'
 
-    return create_model(model='party.identifier', **values)
+    return create_model('party.identifier', **values)
 
 
-def create_contact_mechanism(model, party_dict):
-    return create_model(model='party.contact_mechanism', **party_dict)
+def create_identifiers(code, type):
+    values = {
+        'code': code,
+        'type': type
+    }
+    return create_model('party.identifier', **values)
+
+
+def create_contact_mechanism(values):
+    return create_model('party.contact_mechanism', **values)
