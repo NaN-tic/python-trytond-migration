@@ -17,6 +17,9 @@ def create_model(model_name,  **kwargs):
                 continue
             definition = model._fields[field]
 
+            # TODO: avoid functional fields.
+            if field in ('vat_code', 'email', 'fax', 'website'):
+                continue
             if definition._type in ('one2many', 'many2many'):
                 relation = Pool().get(definition['relation'])
                 for v in value:
@@ -32,16 +35,23 @@ def create_party(party_dict):
     return create_model('party.party', **party_dict)
 
 
+# def party_exists_by_name(name):
+#     Party = Pool().get('party.party')
+#     parties = Party.search(('name', '=', name), limit=1)
+#     if parties:
+#         return parties[0]
+
+
 def party_exists_by_code(code):
     Party = Pool().get('party.party')
-    parties = Party.find(('code', '=', code), limit=1)
+    parties = Party.search(('code', '=', code), limit=1)
     if parties:
         return parties[0]
 
 
 def party_exists_by_identifier(code, type='eu_vat'):
-    PartyId = Pool().get('party.party.identifier')
-    parties = PartyId.find(('code', '=', code), ('type', '=', type), limit=1)
+    PartyId = Pool().get('party.identifier')
+    parties = PartyId.search(('code', '=', code), ('type', '=', type), limit=1)
     if parties:
         return parties[0].party
 
@@ -63,7 +73,6 @@ def get_zip(zip_code):
     zips = CountryZip.search([('zip', '=', zip_code)], limit=1)
     if zips:
         return zips[0]
-
 
 
 def create_vat(code, country='ES'):
