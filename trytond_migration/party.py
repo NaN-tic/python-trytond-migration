@@ -3,57 +3,52 @@
 import stdnum.eu.vat as vat
 
 from trytond.pool import Pool
-
-
-def create_model(model_name,  **kwargs):
-
-    Model = Pool().get(model_name)
-    model = Model()
-    values = kwargs.copy()
-
-    for field, value in values.iteritems():
-        if field in model._fields:
-            if not value:
-                continue
-            definition = model._fields[field]
-
-            # TODO: avoid functional fields.
-            if field in ('vat_code', 'email', 'fax', 'website'):
-                continue
-            if definition._type in ('one2many', 'many2many'):
-                relation = Pool().get(definition['relation'])
-                for v in value:
-                    if v.id and v.id > 0:
-                        v = relation(v.id)
-                    getattr(model, field).append(v)
-            else:
-                setattr(model, field, value)
-    return model
+from .common import create_model
 
 
 def create_party(party_dict):
     return create_model('party.party', **party_dict)
 
 
-# def party_exists_by_name(name):
-#     Party = Pool().get('party.party')
-#     parties = Party.search(('name', '=', name), limit=1)
-#     if parties:
-#         return parties[0]
-
-
-def party_exists_by_code(code):
+def party_exists_by_name(name):
     Party = Pool().get('party.party')
-    parties = Party.search(('code', '=', code), limit=1)
+    parties = Party.search(('name', '=', name), limit=1)
     if parties:
         return parties[0]
 
 
+def party_exists_by_code(code):
+    return party_exists_by_identifier(code, 'migration')
+
+
+def party_exists_by_vat(vat_code, country='ES'):
+    vat_code = vat_code.upper().strip().replace('-', '')
+
+    if not vat_code:
+        return None
+
+    if country:
+        vat_code = country + vat_code
+
+    if not vat.is_valid(vat_code):
+        return None
+
+    vat_code = vat.compact(vat_code)
+
+    parties = party_exists_by_identifier(vat_code)
+    if parties:
+        return parties[0]
+
+    return False
+
+
 def party_exists_by_identifier(code, type='eu_vat'):
     PartyId = Pool().get('party.identifier')
-    parties = PartyId.search(('code', '=', code), ('type', '=', type), limit=1)
+    parties = PartyId.search([('code', '=', code), ('type', '=', type)],
+        limit=1)
     if parties:
-        return parties[0].party
+        return parties
+    return None
 
 
 def create_address(values):
@@ -80,6 +75,8 @@ def create_vat(code, country='ES'):
     if country:
         vat_code = country + vat_code
 
+    vat_code = vat.compact(vat_code)
+
     values = {}
     values['code'] = vat_code
     values['type'] = 'migration'
@@ -89,7 +86,7 @@ def create_vat(code, country='ES'):
     return create_model('party.identifier', **values)
 
 
-def create_identifiers(code, type):
+def create_identifier(code, type):
     values = {
         'code': code,
         'type': type
