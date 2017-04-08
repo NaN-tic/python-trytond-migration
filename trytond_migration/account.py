@@ -2,20 +2,19 @@
 # Tryton imports
 from trytond.transaction import Transaction
 from trytond.pool import Pool
-
-import sys
 import unicodedata
 
-def migrate_accounts(company, accounts, dbname):
+
+def migrate_accounts(company, accounts):
     Account = Pool().get('account.account')
     Account.parent.left = None
     Account.parent.right = None
 
-    #set_user('angel-nan', dbname)
     _upload_accounts(company, accounts)
 
     Account.parent.left = 'left'
     Account.parent.right = 'right'
+
 
 def _get_similar_account(code, digits, chart):
     account = None
@@ -45,6 +44,7 @@ def _get_similar_account(code, digits, chart):
     similar = chart.get(acc)
     return similar
 
+
 def _similar_account(sim_account, code):
     Account = Pool().get('account.account')
     account = Account()
@@ -68,41 +68,45 @@ def _similar_account(sim_account, code):
 
     return account
 
+
 def _upload_accounts(company, accounts_dict):
     pool = Pool()
-    account_config = pool.get('account.configuration').get_singleton()
     Account = pool.get('account.account')
-    digits = 7 #account_config.default_account_code_digits
+    AccountConfig = pool.get('account.configuration')
+
+    account_config = AccountConfig(1)
+    digits = account_config.default_account_code_digits
     chart = get_chart_tree(company)
 
-    unknown = None #unknown_account_type
+    unknown = None  # unknown_account_type
     accounts = []
-    for element in accounts_dict.keys():
+    accounts_sorted = accounts_dict.keys()
+    accounts_sorted.sort()
+    for element in accounts_sorted:
         account_code = get_code(element, digits)
         account_name = accounts_dict[element]
         if account_code in chart:
             continue
+
         similar = None, False
         similar = _get_similar_account(account_code, digits, chart)
         similar2, party_required = similar
         account = _similar_account(similar2, account_code)
         account.code = account_code
-        account.name = unaccent(account_name)
+        account.name = account_name
         if len(account_code) == digits and account.kind == 'view':
             account.kind = 'other'
 
         chart[account.code] = (account, party_required)
         account.type = account.type if account.type else unknown
+
+        print account.code, account.kind, account.type
         accounts.append(account)
 
-    accs = []
     for i in range(1, int(digits)+1):
-        for x in accounts:
-            if len(x.code) == i:
-                accs.append(x)
+        accs = [x for x in accounts if len(x.code) == i]
+        Account.save(accs)
 
-    if accs:
-        Account.create([x._save_values for x in accs])
 
 def update_parent_left_right():
     """
@@ -133,39 +137,35 @@ def update_parent_left_right():
             pos = browse_rec(root, pos)
         return True
 
-    _parent_store_compute(Transaction().cursor, 'account_account',
+    _parent_store_compute(Transaction().connection.cursor(), 'account_account',
         'parent')
 
-def party_codes():
-    return ('430', '400', '410', '572') #Accounts to avoid
 
-def get_code(code, digits=7):
+def party_codes():
+    return ('430', '400', '410', '572')  # Accounts to avoid
+
+
+def get_code(code, digits):
     if len(code) > 4:
         if code[:3] in party_codes():
             code = code[0:4].ljust(len(code), '0')
     if len(code) > digits:
-        code = code[0:4] + code[-(digits -4):]
+        i = (digits-4)
+        code = code[0:4] + code[-3:]  # TODO
     return code
+
 
 def get_chart_tree(company):
     Account = Pool().get('account.account')
     accounts = Account.search([('company', '=', company)])
     return dict((str(a.code), (a, a.party_required)) for a in accounts)
 
-def set_user(user_name, dbname):
-    """ Sets the user for the session """
-    context = {'company': 1}
-    with Transaction().start(dbname, 0, context=context):
-        user_obj = pool.get('res.user')
-        # Admin
-        user = user_obj.search([('login', '=', user_name)], limit=1)[0]
-        context['user'] = user.id
 
 def unaccent(text):
     if isinstance(text, str):
-       text = unicode(text, 'utf-8')
+        text = unicode(text, 'utf-8')
     elif isinstance(text, unicode):
-       pass
+        pass
     else:
-       return str(text)
+        return str(text)
     return unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore')

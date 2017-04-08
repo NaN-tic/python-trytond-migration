@@ -71,19 +71,24 @@ def get_zip(zip_code):
 
 
 def create_vat(code, country='ES'):
-    vat_code = code.upper().strip().replace('-', '')
-    if country:
-        vat_code = country + vat_code
+    pool = Pool()
+    PartyIdentifier = pool.get('party.identifier')
 
-    vat_code = vat.compact(vat_code)
+    vat_code = code.upper().strip().replace('-', '')
+    # vat_code = vat.compact(vat_code)
 
     values = {}
-    values['code'] = vat_code
     values['type'] = 'migration'
+
     if vat.is_valid(vat_code):
         values['type'] = 'eu_vat'
+    elif country:
+        vat_code = country + vat_code
+        if vat.is_valid(vat_code):
+            values['type'] = 'eu_vat'
 
-    return create_model('party.identifier', **values)
+    values['code'] = vat_code
+    return PartyIdentifier(**values)
 
 
 def create_identifier(code, type):
