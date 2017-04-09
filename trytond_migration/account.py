@@ -69,6 +69,14 @@ def _similar_account(sim_account, code):
     return account
 
 
+def get_digits(company):
+    pool = Pool()
+    AccountConfig = pool.get('account.configuration')
+    account_config = AccountConfig(1)
+    digits = account_config.default_account_code_digits
+    return digits
+
+
 def _upload_accounts(company, accounts_dict):
     pool = Pool()
     Account = pool.get('account.account')
