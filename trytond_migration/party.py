@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 
 import stdnum.eu.vat as vat
@@ -10,18 +11,26 @@ def create_party(party_dict):
     return create_model('party.party', **party_dict)
 
 
-def party_exists_by_name(name):
+def party_exists_by_name(name, company=None):
     Party = Pool().get('party.party')
-    parties = Party.search(('name', '=', name), limit=1)
+    parties = Party.search([('name', '=', name), ('company', '=', company)], limit=1)
     if parties:
         return parties[0]
 
 
-def party_exists_by_code(code):
+def party_exists_by_code(code, company):
+    Party = Pool().get('party.party')
+    parties = Party.search([('code', '=', code),
+        ('company', '=', company)], limit=1)
+    if parties:
+        return parties[0]
+
+
+def party_exists_by_mcode(code, company=None):
     return party_exists_by_identifier(code, 'migration')
 
 
-def party_exists_by_vat(vat_code, country='ES'):
+def party_exists_by_vat(vat_code, country='ES', company=None):
     vat_code = vat_code.upper().strip().replace('-', '')
 
     if not vat_code:
@@ -35,9 +44,9 @@ def party_exists_by_vat(vat_code, country='ES'):
 
     vat_code = vat.compact(vat_code)
 
-    parties = party_exists_by_identifier(vat_code)
-    if parties:
-        return parties[0]
+    party = party_exists_by_identifier(vat_code)
+    if party:
+        return party
 
     return False
 
@@ -47,7 +56,8 @@ def party_exists_by_identifier(code, type='eu_vat'):
     parties = PartyId.search([('code', '=', code), ('type', '=', type)],
         limit=1)
     if parties:
-        return parties
+        partyid, = parties
+        return partyid.party
     return None
 
 
@@ -68,6 +78,18 @@ def get_zip(zip_code):
     zips = CountryZip.search([('zip', '=', zip_code)], limit=1)
     if zips:
         return zips[0]
+
+
+def get_country(name, code=None):
+    Country = Pool().get('country.country')
+    name = name.capitalize()
+    if code:
+        c = Country.search([('code', '=', code)], limit=1)
+    else:
+        c = Country.search([('name', '=', name)], limit=1)
+
+    if c:
+        return c[0]
 
 
 def create_vat(code, country='ES'):

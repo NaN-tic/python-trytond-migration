@@ -108,7 +108,6 @@ def _upload_accounts(company, accounts_dict):
         chart[account.code] = (account, party_required)
         account.type = account.type if account.type else unknown
 
-        print account.code, account.kind, account.type
         accounts.append(account)
 
     for i in range(1, int(digits)+1):
@@ -150,7 +149,7 @@ def update_parent_left_right():
 
 
 def party_codes():
-    return ('430', '400', '410', '572')  # Accounts to avoid
+    return ('430', '400', '410')  # Accounts to avoid
 
 
 def get_code(code, digits):
@@ -158,7 +157,6 @@ def get_code(code, digits):
         if code[:3] in party_codes():
             code = code[0:4].ljust(len(code), '0')
     if len(code) > digits:
-        i = (digits-4)
         code = code[0:4] + code[-3:]  # TODO
     return code
 
